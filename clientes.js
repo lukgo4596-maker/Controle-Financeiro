@@ -290,7 +290,7 @@ async function renderDividas(clienteId) {
         <span class="divida-data">${parcelasInfo}</span>
       </div>
       <div class="divida-detalhes">
-        <span class="divida-data">📅 Início: ${formatDate(divida.dataPagamento)}</span>
+        <span class="divida-data">📅 Pagamento: ${formatDate(divida.dataPagamento)}</span>
         <span class="divida-data">📆 Criada: ${formatDate(divida.criadoEm ? divida.criadoEm.split('T')[0] : new Date().toISOString().split('T')[0])}</span>
       </div>
       ${divida.observacoes ? `<div class="divida-obs">📝 ${escapeHtml(divida.observacoes)}</div>` : ""}
