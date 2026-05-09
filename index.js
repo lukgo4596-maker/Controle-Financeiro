@@ -71,7 +71,7 @@ async function login(email, password) {
     const user = userCredential.user;
     
     // Login successful - redirect to dashboard
-    window.location.href = "dashboard.html";
+    window.location.href = "dash.html";
     
   } catch (error) {
     console.error("Erro no login:", error);
