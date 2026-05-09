@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBLIDFDlZ4kjpHkjtg-3zsXrsWMvdbZ8Yc",
@@ -11,269 +11,126 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const auth = getAuth(app);
 
-// DOM elements
-const totalToReceiveSpan = document.getElementById("totalToReceive");
-const activeClientsCountSpan = document.getElementById("activeClientsCount");
-const nextDueClientSpan = document.querySelector(".next-due-client");
-const nextDueValueSpan = document.querySelector(".next-due-value");
-const pendingListDiv = document.getElementById("pendingList");
-const menuButton = document.getElementById("menuButton");
-const dropdownMenu = document.getElementById("dropdownMenu");
+// DOM Elements
+const loginForm = document.getElementById("loginForm");
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+const loginBtn = document.getElementById("loginBtn");
+const togglePasswordBtn = document.getElementById("togglePassword");
+const errorMessageDiv = document.getElementById("errorMessage");
 
-// Data stores
-let clientes = [];
-let dividas = [];
-
-// Helper: format currency
-function formatCurrency(value) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
-
-// Helper: format date
-function formatDate(dateString) {
-  if (!dateString) return "—";
-  const [year, month, day] = dateString.split("-");
-  return `${day}/${month}/${year}`;
-}
-
-// Get cliente by ID
-function getClienteById(clienteId) {
-  return clientes.find(c => c.id === clienteId);
-}
-
-// Get active clients (with pending debts)
-function getActiveClientsCount() {
-  const clientesComDividas = new Set();
-  dividas.forEach(d => {
-    if (d.status === "pendente") {
-      clientesComDividas.add(d.clienteId);
-    }
-  });
-  return clientesComDividas.size;
-}
-
-// Get total to receive (sum of all pending debts)
-function getTotalToReceive() {
-  let total = 0;
-  dividas.forEach(d => {
-    if (d.status === "pendente") {
-      const valorRestante = d.valorParcela * (d.parcelasRestantes || d.parcelas);
-      total += valorRestante;
-    }
-  });
-  return total;
-}
-
-// Get next due date (closest date from pending debts)
-function getNextDueInfo() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+// Toggle password visibility
+togglePasswordBtn.addEventListener("click", () => {
+  const type = passwordInput.type === "password" ? "text" : "password";
+  passwordInput.type = type;
   
-  const pendingDebts = dividas.filter(d => d.status === "pendente");
-  
-  if (pendingDebts.length === 0) {
-    return { cliente: "Nenhum cliente com pendência", valor: null, data: null };
-  }
-  
-  // Find the closest dataPagamento
-  let closestDebt = null;
-  let closestDate = null;
-  
-  pendingDebts.forEach(debt => {
-    const debtDate = new Date(debt.dataPagamento);
-    if (!closestDate || (debtDate >= today && debtDate < closestDate)) {
-      closestDate = debtDate;
-      closestDebt = debt;
-    }
-  });
-  
-  if (!closestDebt) {
-    return { cliente: "Nenhum vencimento futuro", valor: null, data: null };
-  }
-  
-  const cliente = getClienteById(closestDebt.clienteId);
-  const valorRestante = closestDebt.valorParcela * (closestDebt.parcelasRestantes || closestDebt.parcelas);
-  
-  return {
-    cliente: cliente ? cliente.nome : "Cliente desconhecido",
-    valor: valorRestante,
-    data: closestDebt.dataPagamento
-  };
-}
-
-// Get recent pending debts (last 5 by date)
-function getRecentPendingDebts() {
-  const pendingDebts = dividas.filter(d => d.status === "pendente");
-  
-  // Sort by dataPagamento (oldest first for priority)
-  pendingDebts.sort((a, b) => new Date(a.dataPagamento) - new Date(b.dataPagamento));
-  
-  // Return first 5
-  return pendingDebts.slice(0, 5);
-}
-
-// Update dashboard
-function updateDashboard() {
-  const total = getTotalToReceive();
-  totalToReceiveSpan.innerText = formatCurrency(total);
-  
-  const activeCount = getActiveClientsCount();
-  activeClientsCountSpan.innerText = activeCount;
-  
-  const nextInfo = getNextDueInfo();
-  if (nextInfo.cliente === "Nenhum cliente com pendência") {
-    nextDueClientSpan.innerText = nextInfo.cliente;
-    nextDueValueSpan.innerText = "—";
+  // Change icon
+  const icon = togglePasswordBtn.querySelector("svg");
+  if (type === "text") {
+    icon.innerHTML = `
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    `;
   } else {
-    nextDueClientSpan.innerText = nextInfo.cliente;
-    nextDueValueSpan.innerText = formatCurrency(nextInfo.valor);
+    icon.innerHTML = `
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    `;
+  }
+});
+
+// Show error message
+function showError(message) {
+  errorMessageDiv.textContent = message;
+  errorMessageDiv.classList.remove("hidden");
+  
+  // Auto hide after 3 seconds
+  setTimeout(() => {
+    errorMessageDiv.classList.add("hidden");
+  }, 3000);
+}
+
+// Login function
+async function login(email, password) {
+  // Disable button while loading
+  loginBtn.disabled = true;
+  loginBtn.style.opacity = "0.7";
+  const originalText = loginBtn.innerHTML;
+  loginBtn.innerHTML = `
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M12 2a10 10 0 0 1 10 10"/>
+    </svg>
+    <span>Entrando...</span>
+  `;
+  
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    
+    // Login successful - redirect to dashboard
+    window.location.href = "dashboard.html";
+    
+  } catch (error) {
+    console.error("Erro no login:", error);
+    
+    let errorMessage = "Erro ao fazer login. ";
+    switch (error.code) {
+      case "auth/invalid-email":
+        errorMessage = "E-mail inválido. Verifique o formato do e-mail.";
+        break;
+      case "auth/user-not-found":
+        errorMessage = "Usuário não encontrado. Verifique o e-mail.";
+        break;
+      case "auth/wrong-password":
+        errorMessage = "Senha incorreta. Tente novamente.";
+        break;
+      case "auth/too-many-requests":
+        errorMessage = "Muitas tentativas. Tente novamente mais tarde.";
+        break;
+      default:
+        errorMessage = "Erro ao fazer login. Verifique suas credenciais.";
+    }
+    showError(errorMessage);
+  } finally {
+    // Re-enable button
+    loginBtn.disabled = false;
+    loginBtn.style.opacity = "1";
+    loginBtn.innerHTML = originalText;
   }
 }
 
-// Render pending list
-function renderPendingList() {
-  const recentDebts = getRecentPendingDebts();
+// Handle form submit
+loginForm.addEventListener("submit", (e) => {
+  e.preventDefault();
   
-  if (recentDebts.length === 0) {
-    pendingListDiv.innerHTML = '<div class="empty-state">Nenhuma pendência no momento ✨</div>';
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+  
+  if (!email || !password) {
+    showError("Preencha todos os campos.");
     return;
   }
   
-  pendingListDiv.innerHTML = "";
-  recentDebts.forEach(debt => {
-    const cliente = getClienteById(debt.clienteId);
-    const valorRestante = debt.valorParcela * (debt.parcelasRestantes || debt.parcelas);
-    const parcelasInfo = `${debt.parcelas}x de ${formatCurrency(debt.valorParcela)}`;
-    
-    const debtEl = document.createElement("div");
-    debtEl.className = "debt-item";
-    debtEl.innerHTML = `
-      <div class="debt-info">
-        <div class="debt-client">
-          <span>${escapeHtml(cliente ? cliente.nome : "Cliente desconhecido")}</span>
-          <span class="status-badge status-pending">Pendente</span>
-        </div>
-        <div class="debt-produto">${escapeHtml(debt.produto)}</div>
-        <div class="debt-details">
-          <span class="debt-amount">${formatCurrency(valorRestante)}</span>
-          <span class="debt-date">Início: ${formatDate(debt.dataPagamento)}</span>
-        </div>
-        <div class="debt-parcelas">${parcelasInfo}</div>
-      </div>
-    `;
-    pendingListDiv.appendChild(debtEl);
-  });
-}
+  login(email, password);
+});
 
-// Escape HTML
-function escapeHtml(str) {
-  if (!str) return "";
-  return str.replace(/[&<>]/g, function(m) {
-    if (m === "&") return "&amp;";
-    if (m === "<") return "&lt;";
-    if (m === ">") return "&gt;";
-    return m;
-  });
-}
-
-// Set current date
-function setCurrentDate() {
-  const today = new Date();
-  const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
-  const dateElement = document.getElementById("currentDate");
-  if (dateElement) {
-    dateElement.innerText = today.toLocaleDateString('pt-BR');
+// Check if user is already logged in
+auth.onAuthStateChanged((user) => {
+  if (user) {
+    // User is already logged in, redirect to dashboard
+    window.location.href = "dashboard.html";
   }
-}
+});
 
-// Menu toggle
-function setupMenu() {
-  if (!menuButton || !dropdownMenu) return;
-  
-  menuButton.addEventListener('click', (e) => {
-    e.stopPropagation();
-    dropdownMenu.classList.toggle('hidden');
-  });
-  
-  document.addEventListener('click', (e) => {
-    if (!menuButton.contains(e.target) && !dropdownMenu.contains(e.target)) {
-      dropdownMenu.classList.add('hidden');
-    }
-  });
-}
-
-// Load data from Firebase
-async function loadData() {
-  pendingListDiv.innerHTML = '<div class="loading-placeholder">Carregando dados...</div>';
-  
-  try {
-    // Load clientes
-    const clientesSnapshot = await getDocs(collection(db, "clientes"));
-    clientes = [];
-    clientesSnapshot.forEach(doc => {
-      clientes.push({ id: doc.id, ...doc.data() });
-    });
-    
-    // Load dividas
-    const dividasSnapshot = await getDocs(collection(db, "dividas"));
-    dividas = [];
-    dividasSnapshot.forEach(doc => {
-      dividas.push({ id: doc.id, ...doc.data() });
-    });
-    
-    // Update UI
-    updateDashboard();
-    renderPendingList();
-    
-  } catch (error) {
-    console.error("Erro ao carregar dados:", error);
-    pendingListDiv.innerHTML = '<div class="empty-state">⚠️ Erro ao carregar dados do Firebase</div>';
-    
-    // Dados de exemplo para teste
-    const exampleClientes = [
-      { id: "1", nome: "Maria Silva", telefone: "(11) 99999-9999" },
-      { id: "2", nome: "João Santos", telefone: "(11) 98888-8888" }
-    ];
-    
-    const exampleDividas = [
-      {
-        id: "d1",
-        clienteId: "1",
-        produto: "Perfume Importado",
-        valorTotal: 250,
-        parcelas: 2,
-        valorParcela: 125,
-        parcelasRestantes: 2,
-        dataPagamento: "2026-05-20",
-        status: "pendente",
-        observacoes: "",
-        criadoEm: new Date().toISOString()
-      },
-      {
-        id: "d2",
-        clienteId: "2",
-        produto: "Bolo de Chocolate",
-        valorTotal: 150,
-        parcelas: 3,
-        valorParcela: 50,
-        parcelasRestantes: 3,
-        dataPagamento: "2026-05-15",
-        status: "pendente",
-        observacoes: "",
-        criadoEm: new Date().toISOString()
-      }
-    ];
-    
-    clientes = exampleClientes;
-    dividas = exampleDividas;
-    updateDashboard();
-    renderPendingList();
+// Add spin animation to style
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
-}
-
-// Initialize
-setCurrentDate();
-setupMenu();
-loadData();
+`;
+document.head.appendChild(style);

@@ -1,8 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
 import { 
-  getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, getDocs, 
-  query, where, orderBy 
+  getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, getDocs
 } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+import { 
+  getAuth, onAuthStateChanged, signOut 
+} from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBLIDFDlZ4kjpHkjtg-3zsXrsWMvdbZ8Yc",
@@ -14,6 +16,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
 
 // References
@@ -36,6 +39,7 @@ const fabAddBtn = document.getElementById("fabAddBtn");
 const menuButton = document.getElementById("menuButton");
 const dropdownMenu = document.getElementById("dropdownMenu");
 const backButton = document.getElementById("backButton");
+const logoutBtn = document.getElementById("logoutBtn");
 
 // Modals
 const clienteModal = document.getElementById("clienteModal");
@@ -44,19 +48,42 @@ const dividaModal = document.getElementById("dividaModal");
 const clienteForm = document.getElementById("clienteForm");
 const dividaForm = document.getElementById("dividaForm");
 
-// Helper: format currency
+// ============ AUTENTICAÇÃO ============
+// Verificar se usuário está logado
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    window.location.href = "index.html";
+  }
+});
+
+// Botão de logout
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      logoutBtn.disabled = true;
+      await signOut(auth);
+      window.location.href = "index.html";
+    } catch (error) {
+      console.error("Erro ao sair:", error);
+      logoutBtn.disabled = false;
+    }
+  });
+}
+
+// ============ HELPER FUNCTIONS ============
+// Format currency
 function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
-// Helper: format date
+// Format date
 function formatDate(dateString) {
   if (!dateString) return "—";
   const [year, month, day] = dateString.split("-");
   return `${day}/${month}/${year}`;
 }
 
-// Helper: format phone
+// Format phone
 function formatPhone(value) {
   let numbers = value.replace(/\D/g, '');
   if (numbers.length <= 2) return numbers;
@@ -65,7 +92,51 @@ function formatPhone(value) {
   return numbers.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
 }
 
-// Apply money mask
+// Parse money value from string
+function parseMoneyValue(moneyString) {
+  if (!moneyString) return 0;
+  const cleanValue = moneyString.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+  return parseFloat(cleanValue) || 0;
+}
+
+// Calculate valor restante da dívida (considerando parcelas pagas)
+function getValorRestante(divida) {
+  const parcelasPagas = divida.parcelasPagas || 0;
+  const parcelasRestantes = divida.parcelas - parcelasPagas;
+  return divida.valorParcela * parcelasRestantes;
+}
+
+// Get total pendente for a cliente
+function getTotalPendente(clienteId) {
+  const dividasCliente = getDividasByCliente(clienteId);
+  return dividasCliente
+    .filter(d => d.status === "pendente")
+    .reduce((sum, d) => sum + getValorRestante(d), 0);
+}
+
+// Get dividas by cliente
+function getDividasByCliente(clienteId) {
+  return dividas.filter(d => d.clienteId === clienteId);
+}
+
+// Get oldest pending debt date
+function getOldestDebtDate(clienteId) {
+  const dividasCliente = getDividasByCliente(clienteId).filter(d => d.status === "pendente");
+  if (dividasCliente.length === 0) return null;
+  const dates = dividasCliente.map(d => new Date(d.dataPagamento));
+  return new Date(Math.min(...dates));
+}
+
+// Update parcela display
+function updateParcelaDisplay() {
+  const valorTotalStr = document.getElementById("dividaValorTotal").value;
+  const valorTotal = parseMoneyValue(valorTotalStr);
+  const parcelas = parseInt(document.getElementById("dividaParcelas").value);
+  const valorParcela = valorTotal / parcelas;
+  document.getElementById("valorParcelaDisplay").innerHTML = formatCurrency(valorParcela);
+}
+
+// ============ MASCARAS ============
 function setupMoneyMask() {
   const moneyInput = document.getElementById("dividaValorTotal");
   if (moneyInput) {
@@ -83,21 +154,6 @@ function formatNumberWithDots(number) {
   return number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function parseMoneyValue(moneyString) {
-  if (!moneyString) return 0;
-  const cleanValue = moneyString.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
-  return parseFloat(cleanValue) || 0;
-}
-
-function updateParcelaDisplay() {
-  const valorTotalStr = document.getElementById("dividaValorTotal").value;
-  const valorTotal = parseMoneyValue(valorTotalStr);
-  const parcelas = parseInt(document.getElementById("dividaParcelas").value);
-  const valorParcela = valorTotal / parcelas;
-  document.getElementById("valorParcelaDisplay").innerHTML = formatCurrency(valorParcela);
-}
-
-// Setup phone mask
 function setupPhoneMask() {
   const phoneInput = document.getElementById("clienteTelefone");
   if (phoneInput) {
@@ -107,109 +163,31 @@ function setupPhoneMask() {
   }
 }
 
-// Load all data
+// ============ LOAD DATA ============
 async function loadData() {
-  await loadClientes();
-  await loadDividas();
-  renderClientes();
-}
-
-// Load clientes from Firebase
-async function loadClientes() {
+  clientesListDiv.innerHTML = '<div class="loading-placeholder">Carregando clientes...</div>';
+  
   try {
-    const snapshot = await getDocs(clientesRef);
+    const clientesSnapshot = await getDocs(clientesRef);
     clientes = [];
-    snapshot.forEach(doc => {
+    clientesSnapshot.forEach(doc => {
       clientes.push({ id: doc.id, ...doc.data() });
     });
-  } catch (error) {
-    console.error("Erro ao carregar clientes:", error);
-  }
-}
-
-// Load dividas from Firebase
-async function loadDividas() {
-  try {
-    const snapshot = await getDocs(dividasRef);
+    
+    const dividasSnapshot = await getDocs(dividasRef);
     dividas = [];
-    snapshot.forEach(doc => {
+    dividasSnapshot.forEach(doc => {
       dividas.push({ id: doc.id, ...doc.data() });
     });
+    
+    renderClientes();
   } catch (error) {
-    console.error("Erro ao carregar dívidas:", error);
+    console.error("Erro ao carregar dados:", error);
+    clientesListDiv.innerHTML = '<div class="empty-state">⚠️ Erro ao carregar dados</div>';
   }
 }
 
-// Get dividas by cliente
-function getDividasByCliente(clienteId) {
-  return dividas.filter(d => d.clienteId === clienteId);
-}
-
-// Calculate total pendente for a cliente
-function getTotalPendente(clienteId) {
-  const dividasCliente = getDividasByCliente(clienteId);
-  return dividasCliente
-    .filter(d => d.status === "pendente")
-    .reduce((sum, d) => sum + (d.valorParcela * (d.parcelasRestantes || d.parcelas)), 0);
-}
-
-// Get oldest pending debt date
-function getOldestDebtDate(clienteId) {
-  const dividasCliente = getDividasByCliente(clienteId).filter(d => d.status === "pendente");
-  if (dividasCliente.length === 0) return null;
-  const dates = dividasCliente.map(d => new Date(d.dataPagamento));
-  return new Date(Math.min(...dates));
-}
-
-// Sort clientes
-function sortClientes(clientesArray) {
-  const sorted = [...clientesArray];
-  
-  switch (currentSort) {
-    case "nome":
-      sorted.sort((a, b) => a.nome.localeCompare(b.nome));
-      break;
-    case "valor":
-      sorted.sort((a, b) => {
-        const totalA = getTotalPendente(a.id);
-        const totalB = getTotalPendente(b.id);
-        return totalB - totalA;
-      });
-      break;
-    case "tempo":
-      sorted.sort((a, b) => {
-        const dateA = getOldestDebtDate(a.id);
-        const dateB = getOldestDebtDate(b.id);
-        if (!dateA && !dateB) return 0;
-        if (!dateA) return 1;
-        if (!dateB) return -1;
-        return dateA - dateB;
-      });
-      break;
-  }
-  return sorted;
-}
-
-// Filter clientes
-function filterClientes(clientesArray) {
-  if (currentFilter === "all") return clientesArray;
-  if (currentFilter === "active") {
-    return clientesArray.filter(c => getTotalPendente(c.id) > 0);
-  }
-  if (currentFilter === "paid") {
-    return clientesArray.filter(c => getTotalPendente(c.id) === 0 && getDividasByCliente(c.id).length > 0);
-  }
-  return clientesArray;
-}
-
-// Search clientes
-function searchClientes(clientesArray, searchTerm) {
-  if (!searchTerm) return clientesArray;
-  const term = searchTerm.toLowerCase();
-  return clientesArray.filter(c => c.nome.toLowerCase().includes(term));
-}
-
-// Render clientes list
+// ============ RENDER CLIENTES ============
 function renderClientes() {
   let filtered = filterClientes(clientes);
   filtered = searchClientes(filtered, searchInput.value);
@@ -245,7 +223,160 @@ function renderClientes() {
   });
 }
 
-// Open detalhes modal
+function sortClientes(clientesArray) {
+  const sorted = [...clientesArray];
+  
+  switch (currentSort) {
+    case "nome":
+      sorted.sort((a, b) => a.nome.localeCompare(b.nome));
+      break;
+    case "valor":
+      sorted.sort((a, b) => {
+        const totalA = getTotalPendente(a.id);
+        const totalB = getTotalPendente(b.id);
+        return totalB - totalA;
+      });
+      break;
+    case "tempo":
+      sorted.sort((a, b) => {
+        const dateA = getOldestDebtDate(a.id);
+        const dateB = getOldestDebtDate(b.id);
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return dateA - dateB;
+      });
+      break;
+  }
+  return sorted;
+}
+
+function filterClientes(clientesArray) {
+  if (currentFilter === "all") return clientesArray;
+  if (currentFilter === "active") {
+    return clientesArray.filter(c => getTotalPendente(c.id) > 0);
+  }
+  if (currentFilter === "paid") {
+    return clientesArray.filter(c => getTotalPendente(c.id) === 0 && getDividasByCliente(c.id).length > 0);
+  }
+  return clientesArray;
+}
+
+function searchClientes(clientesArray, searchTerm) {
+  if (!searchTerm) return clientesArray;
+  const term = searchTerm.toLowerCase();
+  return clientesArray.filter(c => c.nome.toLowerCase().includes(term));
+}
+
+// ============ RENDER DÍVIDAS ============
+async function renderDividas(clienteId) {
+  const dividasCliente = getDividasByCliente(clienteId);
+  const dividasListDiv = document.getElementById("dividasList");
+  
+  if (dividasCliente.length === 0) {
+    dividasListDiv.innerHTML = '<div class="empty-state">Nenhuma dívida cadastrada</div>';
+    return;
+  }
+  
+  dividasListDiv.innerHTML = "";
+  dividasCliente.forEach(divida => {
+    const valorRestante = getValorRestante(divida);
+    const parcelasPagas = divida.parcelasPagas || 0;
+    const parcelasRestantes = divida.parcelas - parcelasPagas;
+    const parcelasInfo = `${parcelasPagas}/${divida.parcelas} pagas - ${parcelasRestantes} restantes`;
+    
+    const item = document.createElement("div");
+    item.className = "divida-item";
+    item.innerHTML = `
+      <div class="divida-header">
+        <span class="divida-produto">${escapeHtml(divida.produto)}</span>
+        <span class="divida-status ${divida.status === "pendente" ? "status-pendente" : "status-pago"}">
+          ${divida.status === "pendente" ? "Pendente" : "Pago"}
+        </span>
+      </div>
+      <div class="divida-detalhes">
+        <span class="divida-valor">${formatCurrency(valorRestante)}</span>
+        <span class="divida-data">${parcelasInfo}</span>
+      </div>
+      <div class="divida-detalhes">
+        <span class="divida-data">📅 Início: ${formatDate(divida.dataPagamento)}</span>
+        <span class="divida-data">📆 Criada: ${formatDate(divida.criadoEm ? divida.criadoEm.split('T')[0] : new Date().toISOString().split('T')[0])}</span>
+      </div>
+      <div class="divida-detalhes">
+        <span class="divida-data">💵 Valor parcela: ${formatCurrency(divida.valorParcela)}</span>
+      </div>
+      ${divida.observacoes ? `<div class="divida-obs">📝 ${escapeHtml(divida.observacoes)}</div>` : ""}
+      <div class="divida-actions">
+        ${divida.status === "pendente" && parcelasRestantes > 0 ? `
+          <button class="btn-pagar-parcela" data-id="${divida.id}">✓ Pagar 1 parcela</button>
+        ` : ""}
+        ${divida.status === "pendente" && parcelasRestantes === parcelasDivida ? `
+          <button class="btn-pagar-tudo" data-id="${divida.id}">✓ Pagar tudo</button>
+        ` : ""}
+        <button class="btn-editar" data-id="${divida.id}">✎ Editar</button>
+      </div>
+    `;
+    
+    const pagarParcelaBtn = item.querySelector(".btn-pagar-parcela");
+    const pagarTudoBtn = item.querySelector(".btn-pagar-tudo");
+    const editarBtn = item.querySelector(".btn-editar");
+    
+    if (pagarParcelaBtn) pagarParcelaBtn.addEventListener("click", () => pagarParcela(divida.id));
+    if (pagarTudoBtn) pagarTudoBtn.addEventListener("click", () => pagarTudo(divida.id));
+    editarBtn.addEventListener("click", () => openDividaModal(divida));
+    
+    dividasListDiv.appendChild(item);
+  });
+}
+
+// ============ PAGAMENTO DE PARCELAS ============
+async function pagarParcela(dividaId) {
+  const divida = dividas.find(d => d.id === dividaId);
+  if (!divida) return;
+  
+  const parcelasPagas = (divida.parcelasPagas || 0) + 1;
+  const parcelasRestantes = divida.parcelas - parcelasPagas;
+  const status = parcelasRestantes === 0 ? "pago" : "pendente";
+  
+  try {
+    await updateDoc(doc(db, "dividas", dividaId), {
+      parcelasPagas: parcelasPagas,
+      status: status,
+      ultimoPagamento: new Date().toISOString().split("T")[0]
+    });
+    await loadData();
+    if (currentClienteId) {
+      await renderDividas(currentClienteId);
+    }
+    renderClientes();
+  } catch (error) {
+    console.error("Erro ao pagar parcela:", error);
+    alert("Erro ao registrar pagamento");
+  }
+}
+
+async function pagarTudo(dividaId) {
+  const divida = dividas.find(d => d.id === dividaId);
+  if (!divida) return;
+  
+  try {
+    await updateDoc(doc(db, "dividas", dividaId), {
+      parcelasPagas: divida.parcelas,
+      status: "pago",
+      dataPagamentoReal: new Date().toISOString().split("T")[0]
+    });
+    await loadData();
+    if (currentClienteId) {
+      await renderDividas(currentClienteId);
+    }
+    renderClientes();
+  } catch (error) {
+    console.error("Erro ao pagar tudo:", error);
+    alert("Erro ao registrar pagamento");
+  }
+}
+
+// ============ MODALS ============
 async function openDetalhesModal(clienteId) {
   currentClienteId = clienteId;
   const cliente = clientes.find(c => c.id === clienteId);
@@ -261,75 +392,6 @@ async function openDetalhesModal(clienteId) {
   detalhesModal.classList.remove("hidden");
 }
 
-// Render dividas for a cliente
-async function renderDividas(clienteId) {
-  const dividasCliente = getDividasByCliente(clienteId);
-  const dividasListDiv = document.getElementById("dividasList");
-  
-  if (dividasCliente.length === 0) {
-    dividasListDiv.innerHTML = '<div class="empty-state">Nenhuma dívida cadastrada</div>';
-    return;
-  }
-  
-  dividasListDiv.innerHTML = "";
-  dividasCliente.forEach(divida => {
-    const valorTotalRestante = divida.valorParcela * (divida.parcelasRestantes || divida.parcelas);
-    const parcelasInfo = `${divida.parcelas}x de ${formatCurrency(divida.valorParcela)}`;
-    
-    const item = document.createElement("div");
-    item.className = "divida-item";
-    item.innerHTML = `
-      <div class="divida-header">
-        <span class="divida-produto">${escapeHtml(divida.produto)}</span>
-        <span class="divida-status ${divida.status === "pendente" ? "status-pendente" : "status-pago"}">
-          ${divida.status === "pendente" ? "Pendente" : "Pago"}
-        </span>
-      </div>
-      <div class="divida-detalhes">
-        <span class="divida-valor">${formatCurrency(valorTotalRestante)}</span>
-        <span class="divida-data">${parcelasInfo}</span>
-      </div>
-      <div class="divida-detalhes">
-        <span class="divida-data">📅 Pagamento: ${formatDate(divida.dataPagamento)}</span>
-        <span class="divida-data">📆 Criada: ${formatDate(divida.criadoEm ? divida.criadoEm.split('T')[0] : new Date().toISOString().split('T')[0])}</span>
-      </div>
-      ${divida.observacoes ? `<div class="divida-obs">📝 ${escapeHtml(divida.observacoes)}</div>` : ""}
-      <div class="divida-actions">
-        ${divida.status === "pendente" ? `<button class="btn-pagar" data-id="${divida.id}">✓ Marcar pago</button>` : ""}
-        <button class="btn-editar" data-id="${divida.id}">✎ Editar</button>
-      </div>
-    `;
-    
-    const pagarBtn = item.querySelector(".btn-pagar");
-    const editarBtn = item.querySelector(".btn-editar");
-    
-    if (pagarBtn) pagarBtn.addEventListener("click", () => marcarPago(divida.id));
-    editarBtn.addEventListener("click", () => openDividaModal(divida));
-    
-    dividasListDiv.appendChild(item);
-  });
-}
-
-// Marcar divida como paga
-async function marcarPago(dividaId) {
-  const divida = dividas.find(d => d.id === dividaId);
-  if (!divida) return;
-  
-  try {
-    await updateDoc(doc(db, "dividas", dividaId), {
-      status: "pago",
-      dataPagamentoReal: new Date().toISOString().split("T")[0]
-    });
-    await loadDividas();
-    await renderDividas(currentClienteId);
-    renderClientes();
-  } catch (error) {
-    console.error("Erro ao marcar como pago:", error);
-    alert("Erro ao atualizar status");
-  }
-}
-
-// Open cliente modal
 function openClienteModal(cliente = null) {
   if (cliente) {
     document.getElementById("clienteModalTitle").innerText = "Editar Cliente";
@@ -344,7 +406,6 @@ function openClienteModal(cliente = null) {
   clienteModal.classList.remove("hidden");
 }
 
-// Open divida modal
 function openDividaModal(divida = null) {
   if (divida) {
     document.getElementById("dividaModalTitle").innerText = "Editar Dívida";
@@ -369,7 +430,7 @@ function openDividaModal(divida = null) {
   dividaModal.classList.remove("hidden");
 }
 
-// Save cliente
+// ============ SAVE DATA ============
 async function saveCliente(e) {
   e.preventDefault();
   const id = document.getElementById("clienteId").value;
@@ -386,8 +447,7 @@ async function saveCliente(e) {
       data.criadoEm = new Date().toISOString();
       await addDoc(clientesRef, data);
     }
-    await loadClientes();
-    renderClientes();
+    await loadData();
     clienteModal.classList.add("hidden");
   } catch (error) {
     console.error("Erro ao salvar cliente:", error);
@@ -395,7 +455,6 @@ async function saveCliente(e) {
   }
 }
 
-// Save divida
 async function saveDivida(e) {
   e.preventDefault();
   const id = document.getElementById("dividaId").value;
@@ -415,7 +474,7 @@ async function saveDivida(e) {
     valorTotal: valorTotal,
     parcelas: parcelas,
     valorParcela: valorParcela,
-    parcelasRestantes: parcelas,
+    parcelasPagas: 0,
     dataPagamento: document.getElementById("dividaDataPagamento").value,
     status: document.getElementById("dividaStatus").value,
     observacoes: document.getElementById("dividaObservacoes").value,
@@ -429,9 +488,10 @@ async function saveDivida(e) {
       data.criadoEm = new Date().toISOString();
       await addDoc(dividasRef, data);
     }
-    await loadDividas();
-    await renderDividas(clienteId);
-    renderClientes();
+    await loadData();
+    if (clienteId) {
+      await renderDividas(clienteId);
+    }
     dividaModal.classList.add("hidden");
   } catch (error) {
     console.error("Erro ao salvar dívida:", error);
@@ -439,7 +499,7 @@ async function saveDivida(e) {
   }
 }
 
-// Escape HTML
+// ============ ESCAPE HTML ============
 function escapeHtml(str) {
   if (!str) return "";
   return str.replace(/[&<>]/g, function(m) {
@@ -450,7 +510,23 @@ function escapeHtml(str) {
   });
 }
 
-// Event listeners
+// ============ MENU ============
+function setupMenu() {
+  if (!menuButton || !dropdownMenu) return;
+  
+  menuButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdownMenu.classList.toggle('hidden');
+  });
+  
+  document.addEventListener('click', (e) => {
+    if (!menuButton.contains(e.target) && !dropdownMenu.contains(e.target)) {
+      dropdownMenu.classList.add('hidden');
+    }
+  });
+}
+
+// ============ EVENT LISTENERS ============
 function setupEventListeners() {
   searchInput.addEventListener("input", () => renderClientes());
   
@@ -469,20 +545,8 @@ function setupEventListeners() {
   });
   
   fabAddBtn.addEventListener("click", () => openClienteModal());
-  
-  menuButton.addEventListener("click", (e) => {
-    e.stopPropagation();
-    dropdownMenu.classList.toggle("hidden");
-  });
-  
-  document.addEventListener("click", (e) => {
-    if (!menuButton.contains(e.target) && !dropdownMenu.contains(e.target)) {
-      dropdownMenu.classList.add("hidden");
-    }
-  });
-  
   backButton.addEventListener("click", () => {
-    window.location.href = "index.html";
+    window.location.href = "dashboard.html";
   });
   
   // Close modals
@@ -511,8 +575,9 @@ function setupEventListeners() {
   });
 }
 
-// Initialize
+// ============ INITIALIZE ============
 setupEventListeners();
 setupMoneyMask();
 setupPhoneMask();
+setupMenu();
 loadData();

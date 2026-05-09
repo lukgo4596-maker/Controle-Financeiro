@@ -706,3 +706,53 @@ main {
   color: #a0aec0;
   font-weight: 500;
 }
+
+/* Header actions */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logout-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ef4444;
+  transition: all 0.2s;
+}
+
+.logout-button:active {
+  background: #fef2f2;
+  transform: scale(0.95);
+}
+
+/* Header actions */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logout-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ef4444;
+  transition: all 0.2s;
+}
+
+.logout-button:active {
+  background: #fef2f2;
+  transform: scale(0.95);
+}
