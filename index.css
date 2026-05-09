@@ -1,0 +1,405 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #f5f7fb;
+  color: #1a1f36;
+  line-height: 1.5;
+}
+
+.app-container {
+  max-width: 600px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: #f5f7fb;
+}
+
+/* Header */
+.top-bar {
+  background: white;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e9ecef;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  color: #db2777;
+  display: flex;
+  align-items: center;
+}
+
+.logo-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #db2777, #f97316);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.menu-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a5568;
+  transition: all 0.2s;
+}
+
+.menu-button:active {
+  background: #f0f2f5;
+  transform: scale(0.95);
+}
+
+/* Dropdown Menu */
+.dropdown-menu {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  min-width: 200px;
+  overflow: hidden;
+  z-index: 200;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-menu.hidden {
+  display: none;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  color: #2d3748;
+  text-decoration: none;
+  transition: all 0.2s;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.dropdown-item svg {
+  flex-shrink: 0;
+}
+
+.dropdown-item:hover,
+.dropdown-item:active {
+  background: #fef2f2;
+  color: #db2777;
+}
+
+.dropdown-item.active {
+  background: #fef2f2;
+  color: #db2777;
+  border-left: 3px solid #db2777;
+}
+
+/* Main content */
+main {
+  padding: 20px;
+}
+
+.greeting-section {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.date-badge {
+  font-size: 0.85rem;
+  background: white;
+  padding: 6px 14px;
+  border-radius: 30px;
+  color: #4a5568;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 20px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: transform 0.1s;
+}
+
+.stat-card:active {
+  transform: scale(0.98);
+}
+
+.stat-icon {
+  width: 52px;
+  height: 52px;
+  background: #fef2f2;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #db2777;
+}
+
+.stat-card.primary .stat-icon {
+  background: #fef2f2;
+  color: #db2777;
+}
+
+.stat-card.secondary .stat-icon {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.stat-info {
+  flex: 1;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #718096;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1a202c;
+  line-height: 1.2;
+}
+
+/* Next Due Card */
+.next-due-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 28px;
+  color: white;
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.25);
+}
+
+.next-due-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  opacity: 0.9;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.next-due-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.next-due-client {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.next-due-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  background: rgba(255,255,255,0.2);
+  padding: 4px 12px;
+  border-radius: 30px;
+}
+
+/* Section Header */
+.section-header {
+  margin: 8px 0 16px 0;
+}
+
+.section-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2d3748;
+  letter-spacing: -0.2px;
+}
+
+/* Pending List */
+.pending-list {
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.debt-item {
+  padding: 16px;
+  border-bottom: 1px solid #edf2f7;
+  transition: background 0.15s;
+}
+
+.debt-item:last-child {
+  border-bottom: none;
+}
+
+.debt-info {
+  margin-bottom: 8px;
+}
+
+.debt-client {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #2d3748;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.debt-produto {
+  font-size: 0.85rem;
+  color: #718096;
+  margin-top: 4px;
+}
+
+.debt-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.debt-amount {
+  font-weight: 700;
+  color: #db2777;
+  font-size: 1rem;
+}
+
+.debt-date {
+  font-size: 0.75rem;
+  color: #a0aec0;
+}
+
+.debt-parcelas {
+  font-size: 0.7rem;
+  color: #a0aec0;
+  margin-top: 4px;
+}
+
+.status-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.loading-placeholder {
+  padding: 32px;
+  text-align: center;
+  color: #a0aec0;
+  font-size: 0.9rem;
+}
+
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: #a0aec0;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.debt-item {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  main {
+    padding: 16px;
+  }
+  
+  .stat-value {
+    font-size: 1.3rem;
+  }
+  
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .stat-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+  
+  .next-due-client {
+    font-size: 0.9rem;
+  }
+  
+  .next-due-value {
+    font-size: 1.1rem;
+  }
+}
